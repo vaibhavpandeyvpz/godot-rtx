@@ -42,6 +42,7 @@
 
 #define RB_TEX_RAYTRACING SNAME("raytracing")
 #define RB_TEX_RT_DEPTH SNAME("rt_depth")
+#define RB_TEX_RT_BACKGROUND SNAME("rt_primary_background")
 
 #define RB_SCOPE_DLSS_RR SNAME("dlss_rr")
 #define RB_TEX_DLSS_RR_DIFFUSE_ALBEDO SNAME("diffuse_albedo")

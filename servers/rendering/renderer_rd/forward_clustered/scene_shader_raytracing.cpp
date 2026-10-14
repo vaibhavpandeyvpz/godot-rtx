@@ -63,7 +63,7 @@ struct RaygenShaderOption {
 // Add entries here to grow the raygen permutation set (2^N variants).
 static constexpr RaygenShaderOption RAYGEN_SHADER_OPTIONS[] = {
 	{ SceneShaderRaytracing::RT_FLAG_DLSS_RR_ENABLED, "#define DLSS_RR_ENABLED\n" },
-	{ SceneShaderRaytracing::RT_FLAG_SER_ENABLED, "#define USE_SER\n" },
+	// SER permutations remain disabled until capability gating is exposed by RD.
 	{ SceneShaderRaytracing::RT_FLAG_RAY_QUERY_SHADOWS_ENABLED, "#define USE_RAY_QUERY_SHADOWS\n" },
 
 };
@@ -677,7 +677,7 @@ uint32_t SceneShaderRaytracing::compute_rt_flags(RID p_environment, bool p_fog_e
 	}
 
 	if (GLOBAL_GET("rendering/pathtracing/use_shader_execution_reordering")) {
-		flags |= RT_FLAG_SER_ENABLED;
+		WARN_PRINT_ONCE("Shader execution reordering is disabled in this backport; using standard ray traversal.");
 	}
 
 	return rt_flags_pack(flags, sample_count, max_bounces);
@@ -1111,6 +1111,7 @@ void SceneShaderRaytracing::_build_pipeline_worker(PipelineBuildTask *p_task) {
 					RD::SHADER_STAGE_CLOSEST_HIT, si.ch_src, RD::SHADER_LANGUAGE_GLSL, &error);
 		}
 		if (ch_spirv.is_empty()) {
+			ERR_PRINT("Ray-tracing shader compilation failed: " + error);
 			_dump_failed_shader(si.ch_src, vformat("hg%d_v%x_closest_hit", i, p_task->rt_flags));
 			p_task->new_per_hg_shaders[i] = RID();
 			p_task->new_ready_mask[i] = false;
@@ -1131,6 +1132,7 @@ void SceneShaderRaytracing::_build_pipeline_worker(PipelineBuildTask *p_task) {
 						RD::SHADER_STAGE_ANY_HIT, si.ah_src, RD::SHADER_LANGUAGE_GLSL, &error);
 			}
 			if (ah_spirv.is_empty()) {
+				ERR_PRINT("Ray-tracing shader compilation failed: " + error);
 				_dump_failed_shader(si.ah_src, vformat("hg%d_v%x_any_hit", i, p_task->rt_flags));
 				p_task->new_per_hg_shaders[i] = RID();
 				p_task->new_ready_mask[i] = false;
@@ -1152,6 +1154,7 @@ void SceneShaderRaytracing::_build_pipeline_worker(PipelineBuildTask *p_task) {
 						RD::SHADER_STAGE_INTERSECTION, si.is_src, RD::SHADER_LANGUAGE_GLSL, &error);
 			}
 			if (is_spirv.is_empty()) {
+				ERR_PRINT("Ray-tracing shader compilation failed: " + error);
 				_dump_failed_shader(si.is_src, vformat("hg%d_v%x_intersection", i, p_task->rt_flags));
 				p_task->new_per_hg_shaders[i] = RID();
 				p_task->new_ready_mask[i] = false;
@@ -1426,6 +1429,13 @@ void SceneShaderRaytracing::_join_lane_for_shutdown() {
 		if (current->worker_id != WorkerThreadPool::INVALID_TASK_ID && WorkerThreadPool::get_singleton()) {
 			WorkerThreadPool::get_singleton()->wait_for_task_completion(current->worker_id);
 		}
+		// A completed worker can still own shaders when shutdown wins the race
+		// with finalization. Existing bundle shaders remain owned by the bundle.
+		for (uint32_t i = 0; i < current->new_per_hg_shaders.size(); i++) {
+			if (current->slots[i].existing_per_hg_shader.is_null() && current->new_per_hg_shaders[i].is_valid()) {
+				RD::get_singleton()->free_rid(current->new_per_hg_shaders[i]);
+			}
+		}
 		if (current->new_pipeline.is_valid()) {
 			RD::get_singleton()->free_rid(current->new_pipeline);
 		}
@@ -1472,13 +1482,13 @@ void SceneShaderRaytracing::init(const String p_defines) {
 		ShaderCompiler::DefaultIdentifierActions actions;
 
 		actions.renames["MODEL_MATRIX"] = "read_model_matrix";
-		actions.renames["MODEL_NORMAL_MATRIX"] = "model_normal_matrix";
+		actions.renames["MODEL_NORMAL_MATRIX"] = "transpose(inverse(mat3(read_model_matrix)))";
 		actions.renames["VIEW_MATRIX"] = "read_view_matrix";
 		actions.renames["INV_VIEW_MATRIX"] = "inv_view_matrix";
 		actions.renames["PROJECTION_MATRIX"] = "projection_matrix";
 		actions.renames["INV_PROJECTION_MATRIX"] = "inv_projection_matrix";
 		actions.renames["MODELVIEW_MATRIX"] = "(read_view_matrix * read_model_matrix)";
-		actions.renames["MODELVIEW_NORMAL_MATRIX"] = "mat3(read_view_matrix * read_model_matrix)";
+		actions.renames["MODELVIEW_NORMAL_MATRIX"] = "transpose(inverse(mat3(read_view_matrix * read_model_matrix)))";
 		actions.renames["MAIN_CAM_INV_VIEW_MATRIX"] = "inv_view_matrix";
 
 		actions.renames["VERTEX"] = "vertex";

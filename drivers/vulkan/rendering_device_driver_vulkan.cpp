@@ -1390,10 +1390,12 @@ Error RenderingDeviceDriverVulkan::_initialize_device(const LocalVector<VkDevice
 	shader_features.pNext = create_info_next;
 	shader_features.shaderFloat16 = shader_capabilities.shader_float16_is_supported;
 	shader_features.shaderInt8 = shader_capabilities.shader_int8_is_supported;
-	create_info_next = &shader_features;
+	if (physical_device_properties.apiVersion < VK_API_VERSION_1_2) {
+		create_info_next = &shader_features;
+	}
 
 	VkPhysicalDeviceBufferDeviceAddressFeaturesKHR buffer_device_address_features = {};
-	if (buffer_device_address_support) {
+	if (buffer_device_address_support && physical_device_properties.apiVersion < VK_API_VERSION_1_2) {
 		buffer_device_address_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES_KHR;
 		buffer_device_address_features.pNext = create_info_next;
 		buffer_device_address_features.bufferDeviceAddress = buffer_device_address_support;
@@ -1401,7 +1403,7 @@ Error RenderingDeviceDriverVulkan::_initialize_device(const LocalVector<VkDevice
 	}
 
 	VkPhysicalDeviceVulkanMemoryModelFeaturesKHR vulkan_memory_model_features = {};
-	if (vulkan_memory_model_support && vulkan_memory_model_device_scope_support) {
+	if (vulkan_memory_model_support && vulkan_memory_model_device_scope_support && physical_device_properties.apiVersion < VK_API_VERSION_1_2) {
 		vulkan_memory_model_features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES_KHR;
 		vulkan_memory_model_features.pNext = create_info_next;
 		vulkan_memory_model_features.vulkanMemoryModel = vulkan_memory_model_support;

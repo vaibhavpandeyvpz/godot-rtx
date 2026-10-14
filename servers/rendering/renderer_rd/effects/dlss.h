@@ -90,7 +90,8 @@ public:
 	bool is_ready(DLSSContext *context);
 
 private:
-	void _upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext::Parameters &p_params);
+	void _upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext::Parameters &p_params, bool p_sharpen_only = false);
+	static void _sharpen_internal_graph_callback(RenderingDeviceDriver *p_driver, RDD::CommandBufferID p_command_buffer, void *p_userdata);
 	static void _upscale_internal_graph_callback(RenderingDeviceDriver *p_driver, RDD::CommandBufferID p_command_buffer, void *p_userdata);
 };
 

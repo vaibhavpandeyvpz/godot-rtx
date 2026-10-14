@@ -1416,6 +1416,8 @@ public:
 		RID blas;
 	};
 
+	// Source buffer deletion can cascade to cached acceleration structures.
+	bool acceleration_structure_is_valid(RID p_acceleration_structure) const;
 	Error blas_build(RID p_blas);
 	Error blas_update(RID p_blas);
 	Error tlas_build(RID p_tlas, Span<AccelerationStructureInstance> p_instances);

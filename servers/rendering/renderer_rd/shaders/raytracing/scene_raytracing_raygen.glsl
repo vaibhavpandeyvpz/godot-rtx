@@ -21,7 +21,7 @@
 #define RT_STAGE_RAYGEN 1
 #include "raytracing_common_inc.glsl"
 
-layout(set = 0, binding = 0, rgba32f) uniform image2D image;
+layout(set = 0, binding = 0, rgba16f) uniform image2D image;
 layout(set = 0, binding = 1) uniform accelerationStructureEXT tlas;
 
 layout(location = 0) rayPayloadEXT PathPayload payload;
@@ -121,6 +121,7 @@ void main() {
 // clang-format on
 
 layout(location = 0) rayPayloadInEXT PathPayload payload;
+layout(set = 0, binding = 33) uniform texture2D primary_background;
 
 #ifdef USE_RADIANCE_OCTMAP_ARRAY
 
@@ -217,6 +218,10 @@ void main() {
 		}
 
 		sky_color = mix(sky_color, fog_color, scene_data_block.data.fog_sky_affect);
+	}
+
+	if (get_total_bounces(ps.packed_bounces_flags) == 0u) {
+		sky_color = texelFetch(sampler2D(primary_background, radiance_sampler), ivec2(gl_LaunchIDEXT.xy), 0).rgb;
 	}
 
 #ifdef DLSS_RR_ENABLED

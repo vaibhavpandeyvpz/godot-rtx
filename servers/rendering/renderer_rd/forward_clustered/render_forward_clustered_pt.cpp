@@ -31,6 +31,7 @@
 #include "render_forward_clustered_pt.h"
 
 #include "servers/rendering/renderer_rd/environment/fog.h"
+#include "servers/rendering/renderer_rd/framebuffer_cache_rd.h"
 #include "servers/rendering/renderer_rd/forward_clustered/scene_shader_raytracing.h"
 #include "servers/rendering/renderer_rd/storage_rd/light_storage.h"
 #include "servers/rendering/renderer_rd/storage_rd/texture_storage.h"
@@ -316,6 +317,20 @@ void RenderForwardClusteredPT::_render_scene(RenderDataRD *p_render_data, const 
 		uint32_t pt_directional_light_count = 0;
 		uint32_t pt_positional_light_count = 0;
 		_setup_lights_cluster_decals(p_render_data, pt_directional_light_count, pt_positional_light_count);
+	}
+
+	// Render the visible background independently of the reflection environment.
+	// Custom sky shaders can intentionally use different content for IBL.
+	if (raytracing) {
+		raytracing->rt_ensure_textures(rb.ptr());
+		RID background_fb = FramebufferCacheRD::get_singleton()->get_cache(rb->get_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_RT_BACKGROUND));
+		Vector<Color> background_clear;
+		background_clear.push_back(clear_color);
+		RD::DrawListID draw_list = RD::get_singleton()->draw_list_begin(background_fb, RD::DRAW_CLEAR_COLOR_0, background_clear);
+		if (draw_sky || draw_sky_fog_only) {
+			sky.draw_sky(draw_list, rb, p_render_data->environment, background_fb, time, sky_luminance_multiplier, sky_brightness_multiplier);
+		}
+		RD::get_singleton()->draw_list_end();
 	}
 
 	// Execute raytracing (replaces the opaque + motion vector pass).

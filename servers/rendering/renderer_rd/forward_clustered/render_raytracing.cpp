@@ -169,6 +169,9 @@ void RenderRaytracing::rt_ensure_textures(RenderSceneBuffersRD *p_render_buffers
 	if (!p_render_buffers->has_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_RAYTRACING)) {
 		p_render_buffers->create_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_RAYTRACING, RD::DATA_FORMAT_R16G16B16A16_SFLOAT, usage_bits, RD::TEXTURE_SAMPLES_1);
 	}
+	if (!p_render_buffers->has_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_RT_BACKGROUND)) {
+		p_render_buffers->create_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_RT_BACKGROUND, p_render_buffers->get_base_data_format(), RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_COLOR_ATTACHMENT_BIT, RD::TEXTURE_SAMPLES_1);
+	}
 	if (!p_render_buffers->has_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_RT_DEPTH)) {
 		p_render_buffers->create_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_RT_DEPTH, RD::DATA_FORMAT_R32_SFLOAT, usage_bits, RD::TEXTURE_SAMPLES_1);
 	}
@@ -209,7 +212,7 @@ void RenderRaytracing::dlss_rr_ensure_buffers(RenderSceneBuffersRD *p_render_buf
 	// Specular Albedo: RGB specular reflection color (RGBA16F; needs the accuracy, fixes banding artifacts).
 	p_render_buffers->create_texture(RB_SCOPE_DLSS_RR, RB_TEX_DLSS_RR_SPECULAR_ALBEDO, RD::DATA_FORMAT_R16G16B16A16_SFLOAT, usage_bits, RD::TEXTURE_SAMPLES_1);
 	// Normal + Roughness: World space normals (RGB) + roughness (A).
-	p_render_buffers->create_texture(RB_SCOPE_DLSS_RR, RB_TEX_DLSS_RR_NORMAL_ROUGHNESS, RD::DATA_FORMAT_R8G8B8A8_SNORM, usage_bits, RD::TEXTURE_SAMPLES_1);
+	p_render_buffers->create_texture(RB_SCOPE_DLSS_RR, RB_TEX_DLSS_RR_NORMAL_ROUGHNESS, RD::DATA_FORMAT_R16G16B16A16_SFLOAT, usage_bits, RD::TEXTURE_SAMPLES_1);
 	// Specular Hit Distance: Single channel distance (R16F is sufficient).
 	p_render_buffers->create_texture(RB_SCOPE_DLSS_RR, RB_TEX_DLSS_RR_SPECULAR_HIT_DIST, RD::DATA_FORMAT_R16_SFLOAT, usage_bits, RD::TEXTURE_SAMPLES_1);
 }
@@ -346,7 +349,8 @@ void RenderRaytracing::cleanup_caches() {
 				continue;
 			}
 			if (e->ptr) {
-				if (e->ptr->blas.is_valid()) {
+				// Mesh buffer destruction may already have released this BLAS.
+				if (rd->acceleration_structure_is_valid(e->ptr->blas)) {
 					rd->free_rid(e->ptr->blas);
 				}
 				memdelete(e->ptr);
@@ -372,7 +376,7 @@ void RenderRaytracing::cleanup_caches() {
 			if (!e) {
 				continue;
 			}
-			if (e->blas.is_valid()) {
+			if (rd->acceleration_structure_is_valid(e->blas)) {
 				rd->free_rid(e->blas);
 				e->blas = RID();
 			}
@@ -542,7 +546,8 @@ void RenderRaytracing::prepare_frame() {
 				continue;
 			}
 			if (e->ptr) {
-				if (e->ptr->blas.is_valid()) {
+				// Mesh buffer destruction may already have released this BLAS.
+				if (rd->acceleration_structure_is_valid(e->ptr->blas)) {
 					rd->free_rid(e->ptr->blas);
 				}
 				memdelete(e->ptr);
@@ -572,7 +577,7 @@ void RenderRaytracing::prepare_frame() {
 			if (e->last_used_frame == 0 || current_frame - e->last_used_frame <= MM_BLAS_CACHE_TTL) {
 				continue;
 			}
-			if (e->blas.is_valid()) {
+			if (rd->acceleration_structure_is_valid(e->blas)) {
 				rd->free_rid(e->blas);
 				e->blas = RID();
 			}
@@ -1530,11 +1535,16 @@ RTMaterialData *RenderRaytracing::process_material(RID p_material_rid, uint16_t 
 		mat.albedo_color[1] = c.g;
 		mat.albedo_color[2] = c.b;
 		mat.albedo_color[3] = c.a;
-		mat_data->rt_sbt_offset = 0;
-		mat_data->is_custom_shader = false;
-	} else {
+	}
+	// StandardMaterial3D is generated shader code too. An "albedo" parameter
+	// does not imply the simplified UV-only material evaluator is equivalent:
+	// triplanar coordinates, packed channels, normal decoding and custom shaders
+	// using that same uniform name must preserve their actual shader semantics.
+	mat_data->rt_sbt_offset = 0;
+	mat_data->is_custom_shader = false;
+	uint32_t shader_id = material_storage->material_get_shader_id(p_material_rid);
+	if (shader_id != 0) {
 		mat_data->is_custom_shader = true;
-		uint32_t shader_id = material_storage->material_get_shader_id(p_material_rid);
 		mat_data->rt_sbt_offset = SceneShaderRaytracing::get_singleton()->register_custom_shader(shader_id, p_material_rid);
 
 		const SceneShaderRaytracing::CustomShaderEntry *cse =
@@ -2979,6 +2989,14 @@ RID RenderRaytracing::update_uniform_set(RTViewportState *p_state, const RenderD
 		u.uniform_type = RD::UNIFORM_TYPE_IMAGE;
 		rt_ensure_textures(rb);
 		u.append_id(rt_get_texture(rb));
+		uniforms.push_back(u);
+	}
+
+	{
+		RD::Uniform u;
+		u.binding = 33;
+		u.uniform_type = RD::UNIFORM_TYPE_TEXTURE;
+		u.append_id(rb->get_texture(RB_SCOPE_FORWARD_CLUSTERED, RB_TEX_RT_BACKGROUND));
 		uniforms.push_back(u);
 	}
 

@@ -41,7 +41,7 @@ global_time = scene_data_block.data.time;
 mat4 rt_world_to_object_decomp = rt_aabb_xform * mat4(gl_WorldToObjectEXT);
 
 vertex = (rt_world_to_object_decomp * vec4(rt_hit_pos, 1.0)).xyz;
-normal = mat3(rt_world_to_object_decomp) * rt_normal;
+normal = transpose(mat3(read_model_matrix)) * rt_normal;
 tangent = mat3(rt_world_to_object_decomp) * rt_tangent;
 binormal = mat3(rt_world_to_object_decomp) * rt_bitangent;
 uv_interp = rt_uv;
@@ -58,7 +58,7 @@ rt_frag_coord = vec4(gl_LaunchIDEXT.xy, 0.0, 1.0);
 // Post-vertex transform: object-space -> view-space (mirrors rasterizer post-vertex).
 mat4 rt_modelview = rt_view_matrix * read_model_matrix;
 vertex = (rt_modelview * vec4(vertex, 1.0)).xyz;
-normal = normalize(mat3(rt_modelview) * normal);
+normal = normalize(transpose(inverse(mat3(rt_modelview))) * normal);
 tangent = normalize(mat3(rt_modelview) * tangent);
 binormal = normalize(mat3(rt_modelview) * binormal);
 
