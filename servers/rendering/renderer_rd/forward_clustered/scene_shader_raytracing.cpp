@@ -1243,15 +1243,15 @@ void SceneShaderRaytracing::_build_pipeline_worker(PipelineBuildTask *p_task) {
 void SceneShaderRaytracing::_finalize_pipeline_build(PipelineBuildTask *p_task) {
 	HashMap<uint32_t, PipelineBundle>::Iterator bit = pipeline_bundles.find(p_task->rt_flags);
 	if (bit == pipeline_bundles.end()) {
+		if (p_task->new_pipeline.is_valid()) {
+			RD::get_singleton()->free_rid(p_task->new_pipeline);
+		}
 		for (uint32_t i = 0; i < p_task->slots.size(); i++) {
 			if (p_task->slots[i].existing_per_hg_shader.is_null() &&
 					i < p_task->new_per_hg_shaders.size() &&
 					p_task->new_per_hg_shaders[i].is_valid()) {
 				RD::get_singleton()->free_rid(p_task->new_per_hg_shaders[i]);
 			}
-		}
-		if (p_task->new_pipeline.is_valid()) {
-			RD::get_singleton()->free_rid(p_task->new_pipeline);
 		}
 		return;
 	}
@@ -1429,15 +1429,15 @@ void SceneShaderRaytracing::_join_lane_for_shutdown() {
 		if (current->worker_id != WorkerThreadPool::INVALID_TASK_ID && WorkerThreadPool::get_singleton()) {
 			WorkerThreadPool::get_singleton()->wait_for_task_completion(current->worker_id);
 		}
+		if (current->new_pipeline.is_valid()) {
+			RD::get_singleton()->free_rid(current->new_pipeline);
+		}
 		// A completed worker can still own shaders when shutdown wins the race
 		// with finalization. Existing bundle shaders remain owned by the bundle.
 		for (uint32_t i = 0; i < current->new_per_hg_shaders.size(); i++) {
 			if (current->slots[i].existing_per_hg_shader.is_null() && current->new_per_hg_shaders[i].is_valid()) {
 				RD::get_singleton()->free_rid(current->new_per_hg_shaders[i]);
 			}
-		}
-		if (current->new_pipeline.is_valid()) {
-			RD::get_singleton()->free_rid(current->new_pipeline);
 		}
 		memdelete(current);
 	}

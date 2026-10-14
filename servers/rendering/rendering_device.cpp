@@ -7868,6 +7868,9 @@ void RenderingDevice::_free_internal(RID p_id) {
 		acceleration_structure_owner.free(p_id);
 	} else if (raytracing_pipeline_owner.owns(p_id)) {
 		RaytracingPipeline *pipeline = raytracing_pipeline_owner.get_or_null(p_id);
+		// An async pipeline can be discarded before its first bind, while its
+		// shader binding table upload is still pending on a transfer worker.
+		_check_transfer_worker_buffer(&pipeline->sbt_buffer);
 		frames[frame].raytracing_pipelines_to_dispose_of.push_back(*pipeline);
 		raytracing_pipeline_owner.free(p_id);
 	} else if (hit_sbt_owner.owns(p_id)) {
