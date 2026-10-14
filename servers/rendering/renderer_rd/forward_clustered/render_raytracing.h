@@ -85,7 +85,8 @@ struct alignas(16) RT_GeometryData {
 	// For deformed geometry: previous-frame position buffer used for motion vectors.
 	uint32_t prev_vertex_buffer_address_lo;
 	uint32_t prev_vertex_buffer_address_hi;
-	uint32_t _pad[5];
+	uint32_t instance_uniforms_ofs; // Per-instance parameters in the global shader buffer.
+	uint32_t _pad[4];
 };
 static_assert(sizeof(RT_GeometryData) == 128, "RT_GeometryData must be 128 bytes for std430");
 

@@ -575,6 +575,7 @@ bool SceneShaderRaytracing::_preprocess_shader(RID p_material, bool p_is_procedu
 		actions.entry_point_stages["intersection"] = ShaderCompiler::STAGE_INTERSECTION;
 	}
 
+	actions.render_mode_flags["unshaded"] = &r_entry.unshaded;
 	bool detected_alpha_clip = false;
 	actions.usage_flag_pointers["ALPHA_SCISSOR_THRESHOLD"] = &detected_alpha_clip;
 	actions.usage_flag_pointers["ALPHA_HASH_SCALE"] = &detected_alpha_clip;
@@ -1004,6 +1005,11 @@ SceneShaderRaytracing::PipelineBuildTask *SceneShaderRaytracing::_make_pipeline_
 					"    emission = sample_material_texture(rt_mat.emission_texture_idx, mat_uv, rt_mat.flags).rgb\n"
 					"             * rt_mat.emission_color * rt_mat.emission_strength;\n"
 					"}\n";
+		}
+
+		if (entry.unshaded) {
+			// Unshaded effects retain their authored color in the path tracer.
+			fragment_code += "\nemission += albedo; albedo = vec3(0.0); metallic = 0.0; specular = 0.0;\n";
 		}
 
 		{
@@ -1669,7 +1675,7 @@ void SceneShaderRaytracing::init(const String p_defines) {
 		actions.default_filter = ShaderLanguage::FILTER_LINEAR_MIPMAP;
 		actions.default_repeat = ShaderLanguage::REPEAT_ENABLE;
 		actions.global_buffer_array_variable = "global_shader_uniforms.data";
-		actions.instance_uniform_index_variable = "instances.data[instance_index_interp].instance_uniforms_ofs";
+		actions.instance_uniform_index_variable = "rt_instance_uniforms_ofs";
 
 		actions.check_multiview_samplers = RendererCompositorRD::get_singleton()->is_xr_enabled(); // Make sure we check sampling multiview textures.
 

@@ -2352,6 +2352,7 @@ RTViewportState *RenderRaytracing::build_tlas(const RenderDataRD *p_render_data,
 				geom.aabb_size_x = (float)ps->culling_aabb.size.x;
 				geom.aabb_size_y = (float)ps->culling_aabb.size.y;
 				geom.aabb_size_z = (float)ps->culling_aabb.size.z;
+				geom.instance_uniforms_ofs = uint32_t(inst->shader_uniforms_offset);
 				geometry_data.push_back(geom);
 
 				if (inst->transform_status == RenderForwardClustered::GeometryInstanceForwardClustered::TransformStatus::MOVED) {
@@ -2562,7 +2563,9 @@ RTViewportState *RenderRaytracing::build_tlas(const RenderDataRD *p_render_data,
 			blas_transforms.push_back(final_transform);
 
 			blass.push_back(surf_data->blas);
-			geometry_data.push_back(surf_data->geometry);
+			RT_GeometryData instance_geometry = surf_data->geometry;
+			instance_geometry.instance_uniforms_ofs = uint32_t(inst->shader_uniforms_offset);
+			geometry_data.push_back(instance_geometry);
 
 			if (inst->transform_status == RenderForwardClustered::GeometryInstanceForwardClustered::TransformStatus::MOVED) {
 				motion_indices.push_back((int32_t)motion_transforms.size());
@@ -2654,7 +2657,9 @@ RTViewportState *RenderRaytracing::build_tlas(const RenderDataRD *p_render_data,
 		if (use_merged) {
 			blass.push_back(merged_sd.blas);
 			blas_transforms.push_back(pending.instance_transform);
-			geometry_data.push_back(merged_sd.geometry);
+			RT_GeometryData instance_geometry = merged_sd.geometry;
+			instance_geometry.instance_uniforms_ofs = uint32_t(pending.mm_surf->owner->shader_uniforms_offset);
+			geometry_data.push_back(instance_geometry);
 			sbt_offsets.push_back(pending.mat_data->rt_sbt_offset);
 			material_data.push_back(pending.mat_data->data);
 			motion_indices.push_back(-1);
@@ -2712,7 +2717,9 @@ RTViewportState *RenderRaytracing::build_tlas(const RenderDataRD *p_render_data,
 
 				blass.push_back(surf_data->blas);
 				blas_transforms.push_back(final_transform);
-				geometry_data.push_back(surf_data->geometry);
+				RT_GeometryData instance_geometry = surf_data->geometry;
+				instance_geometry.instance_uniforms_ofs = uint32_t(pending.mm_surf->owner->shader_uniforms_offset);
+				geometry_data.push_back(instance_geometry);
 				sbt_offsets.push_back(pending.mat_data->rt_sbt_offset);
 				material_data.push_back(pending.mat_data->data);
 

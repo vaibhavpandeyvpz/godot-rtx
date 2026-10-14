@@ -24,6 +24,7 @@ mat4 inv_view_matrix = mat4(1.0);
 mat4 projection_matrix = mat4(1.0);
 mat4 inv_projection_matrix = mat4(1.0);
 float global_time = 0.0;
+uint rt_instance_uniforms_ofs = 0u;
 vec2 read_viewport_size = vec2(1.0);
 bool rt_front_facing = true;
 vec2 rt_screen_uv = vec2(0.0);

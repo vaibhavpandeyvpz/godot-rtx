@@ -48,7 +48,8 @@ struct GeometryData {
 	uint prev_vertex_address_lo;
 	uint prev_vertex_address_hi;
 
-	uint _pad[5];
+	uint instance_uniforms_ofs;
+	uint _pad[4];
 };
 
 void get_aabb_compression_xforms(GeometryData geom, out mat4 aabb_xform, out mat4 inv_aabb_xform) {

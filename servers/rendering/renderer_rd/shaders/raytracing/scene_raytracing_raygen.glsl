@@ -638,6 +638,7 @@ layout(buffer_reference, std140) readonly buffer CustomMaterialUniforms{
 // File-scope built-ins accessible from user helper functions in globals.
 float global_time = scene_data_block.data.time;
 float global_prev_time = 0.0;
+uint rt_instance_uniforms_ofs = 0u;
 mat4 read_model_matrix = mat4(0.0);
 mat4 m_INV_MODEL_MATRIX = mat4(0.0);
 mat4 read_view_matrix = transpose(mat4(scene_data_block.data.view_matrix[0], scene_data_block.data.view_matrix[1], scene_data_block.data.view_matrix[2], vec4(0.0, 0.0, 0.0, 1.0)));
@@ -679,6 +680,7 @@ void main() {
 
 	// Per-primitive AABB bounds (available when expose_aabb_bounds is enabled).
 	GeometryData rt_geom = geometries[rt_geometry_idx];
+	rt_instance_uniforms_ofs = rt_geom.instance_uniforms_ofs;
 	vec3 m_AABB_MIN = vec3(0.0);
 	vec3 m_AABB_MAX = vec3(0.0);
 	if (rt_geom.vertex_address != 0ul) {

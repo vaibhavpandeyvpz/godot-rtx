@@ -23,6 +23,7 @@ mat4 rt_view_matrix = transpose(mat4(scene_data_block.data.view_matrix[0],
 		vec4(0.0, 0.0, 0.0, 1.0)));
 
 GeometryData rt_geom = geometries[rt_geometry_idx];
+rt_instance_uniforms_ofs = rt_geom.instance_uniforms_ofs;
 mat4 rt_aabb_xform;
 mat4 rt_inv_aabb_xform;
 get_aabb_compression_xforms(rt_geom, rt_aabb_xform, rt_inv_aabb_xform);

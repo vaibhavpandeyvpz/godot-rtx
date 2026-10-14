@@ -433,6 +433,20 @@ void RenderForwardClustered::_render_list_template(RenderingDevice::DrawListID p
 		pipeline_key.primitive_type = surf->primitive;
 
 		RID xforms_uniform_set = surf->owner->transforms_uniform_set;
+		// RT and motion-vector setup can reallocate instance buffers after the
+		// surface cache was built. Refresh descriptors before the raster overlay
+		// binds them (particles, MultiMeshes and skinned transparent effects).
+		if (xforms_uniform_set.is_valid() && !RD::get_singleton()->uniform_set_is_valid(xforms_uniform_set)) {
+			GeometryInstanceForwardClustered *owner = surf->owner;
+			if (owner->data->base_type == RSE::INSTANCE_PARTICLES) {
+				xforms_uniform_set = particles_storage->particles_get_instance_buffer_uniform_set(owner->data->base, scene_shader.default_shader_rd, TRANSFORMS_UNIFORM_SET);
+			} else if (owner->data->base_type == RSE::INSTANCE_MULTIMESH) {
+				xforms_uniform_set = mesh_storage->multimesh_get_3d_uniform_set(owner->data->base, scene_shader.default_shader_rd, TRANSFORMS_UNIFORM_SET);
+			} else if (mesh_storage->skeleton_is_valid(owner->data->skeleton)) {
+				xforms_uniform_set = mesh_storage->skeleton_get_3d_uniform_set(owner->data->skeleton, scene_shader.default_shader_rd, TRANSFORMS_UNIFORM_SET);
+			}
+			owner->transforms_uniform_set = xforms_uniform_set;
+		}
 
 		SceneShaderForwardClustered::ShaderSpecialization pipeline_specialization = p_params->base_specialization;
 		pipeline_specialization.multimesh = bool(surf->owner->base_flags & INSTANCE_DATA_FLAG_MULTIMESH);
@@ -4351,6 +4365,11 @@ void RenderForwardClustered::_geometry_instance_add_surface_with_material(Geomet
 		rt_pass_flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_OPAQUE;
 		rt_pass_flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_DEPTH;
 		rt_pass_flags |= GeometryInstanceSurfaceDataCache::FLAG_PASS_SHADOW;
+	}
+
+	// Particle draw passes require their per-particle transforms in the raster overlay.
+	if (ginstance->data->base_type == RSE::INSTANCE_PARTICLES) {
+		rt_pass_flags = GeometryInstanceSurfaceDataCache::FLAG_PASS_ALPHA;
 	}
 
 	if (p_material->shader_data->uses_particle_trails) {
