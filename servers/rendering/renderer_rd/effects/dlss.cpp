@@ -224,12 +224,14 @@ void DLSSEffect::upscale(const DLSSContext::Parameters &p_params) {
 		return;
 	}
 
-	// Begin frame if needed.
-	if (StreamlineContext::get().last_token == nullptr) {
-		StreamlineContext::get().get_new_frame_token();
+	// Constants and evaluation must use the token captured for this draw.
+	sl::FrameToken *frame_token = StreamlineContext::get().get_current_frame_token();
+	if (frame_token == nullptr) {
+		return;
 	}
 
 	context->last_parameters = p_params;
+	context->last_parameters.frame_token = frame_token;
 	context->last_effect = this;
 
 	// Decode mvecs
@@ -333,6 +335,8 @@ void DLSSEffect::upscale(const DLSSContext::Parameters &p_params) {
 }
 
 void DLSSEffect::_upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext::Parameters &p_params, bool p_sharpen_only) {
+	sl::FrameToken *frame_token = static_cast<sl::FrameToken *>(p_params.frame_token);
+	ERR_FAIL_NULL(frame_token);
 	DLSSContextInner *context = (DLSSContextInner *)p_params.context;
 
 	void *nativeCmdlist = RD::get_singleton()->get_device_driver()->command_buffer_get_native_handle(cmdid);
@@ -493,7 +497,7 @@ void DLSSEffect::_upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext
 			context->constants.mvecScale = sl::float2(1.0f, 1.0f);
 			context->constants.orthographicProjection = sl::Boolean::eFalse;
 			context->constants.reset = p_params.reset_accumulation ? sl::Boolean::eTrue : sl::Boolean::eFalse;
-			sl::Result result = StreamlineContext::get().slSetConstants(context->constants, *StreamlineContext::get().last_token, context->viewport);
+			sl::Result result = StreamlineContext::get().slSetConstants(context->constants, *frame_token, context->viewport);
 			if (result != sl::Result::eOk) {
 				ERR_FAIL_MSG("Failed to call streamline slSetConstants. Result: " + String(StreamlineContext::result_to_string(result)));
 			}
@@ -521,7 +525,7 @@ void DLSSEffect::_upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext
 				assignResource(resources, resourceTags, numResources, p_params.dlss_rr_color_before_transparency, sl::kBufferTypeColorBeforeTransparency, sl::ResourceLifecycle::eValidUntilPresent);
 			}
 
-			sl::Result result = StreamlineContext::get().slSetTag(context->viewport, resourceTags, numResources, nativeCmdlist);
+			sl::Result result = StreamlineContext::get().frame_based_resource_tagging ? StreamlineContext::get().slSetTagForFrame(*frame_token, context->viewport, resourceTags, numResources, nativeCmdlist) : StreamlineContext::get().slSetTag(context->viewport, resourceTags, numResources, nativeCmdlist);
 			if (result != sl::Result::eOk) {
 				ERR_FAIL_MSG("Failed to call streamline slSetTag. Result: " + String(StreamlineContext::result_to_string(result)));
 			}
@@ -566,13 +570,13 @@ void DLSSEffect::_upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext
 
 			if (use_dlss_rr && StreamlineContext::get().streamline_capabilities.dlss_rr_available) {
 				// Use DLSS Ray Reconstruction
-				result = StreamlineContext::get().slEvaluateFeature(sl::kFeatureDLSS_RR, *StreamlineContext::get().last_token, inputs, 1, nativeCmdlist);
+				result = StreamlineContext::get().slEvaluateFeature(sl::kFeatureDLSS_RR, *frame_token, inputs, 1, nativeCmdlist);
 				if (result != sl::Result::eOk) {
 					ERR_FAIL_MSG("Failed to call streamline slEvaluateFeature for DLSS Ray Reconstruction. Result: " + String(StreamlineContext::result_to_string(result)));
 				}
 			} else if (StreamlineContext::get().streamline_capabilities.dlss_available) {
 				// Use regular DLSS
-				result = StreamlineContext::get().slEvaluateFeature(sl::kFeatureDLSS, *StreamlineContext::get().last_token, inputs, 1, nativeCmdlist);
+				result = StreamlineContext::get().slEvaluateFeature(sl::kFeatureDLSS, *frame_token, inputs, 1, nativeCmdlist);
 				if (result != sl::Result::eOk) {
 					ERR_FAIL_MSG("Failed to call streamline slEvaluateFeature for DLSS Super Resolution. Result: " + String(StreamlineContext::result_to_string(result)));
 				}
@@ -601,7 +605,7 @@ void DLSSEffect::_upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext
 			assignResource(resources, resourceTags, numResources, p_params.output, sl::kBufferTypeScalingInputColor, sl::ResourceLifecycle::eValidUntilPresent);
 			assignResource(resources, resourceTags, numResources, context->sharpening_output, sl::kBufferTypeScalingOutputColor, sl::ResourceLifecycle::eValidUntilPresent);
 
-			sl::Result result = StreamlineContext::get().slSetTag(context->viewport, resourceTags, numResources, nativeCmdlist);
+			sl::Result result = StreamlineContext::get().frame_based_resource_tagging ? StreamlineContext::get().slSetTagForFrame(*frame_token, context->viewport, resourceTags, numResources, nativeCmdlist) : StreamlineContext::get().slSetTag(context->viewport, resourceTags, numResources, nativeCmdlist);
 			if (result != sl::Result::eOk) {
 				ERR_FAIL_MSG("Failed to call streamline slSetTag for NIS. Result: " + String(StreamlineContext::result_to_string(result)));
 			}
@@ -609,7 +613,7 @@ void DLSSEffect::_upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext
 
 		{ // Evaluate NIS
 			const sl::BaseStructure *inputs[] = { &context->viewport };
-			sl::Result result = StreamlineContext::get().slEvaluateFeature(sl::kFeatureNIS, *StreamlineContext::get().last_token, inputs, 1, nativeCmdlist);
+			sl::Result result = StreamlineContext::get().slEvaluateFeature(sl::kFeatureNIS, *frame_token, inputs, 1, nativeCmdlist);
 			if (result != sl::Result::eOk) {
 				ERR_FAIL_MSG("Failed to call streamline slEvaluateFeature for NIS. Result: " + String(StreamlineContext::result_to_string(result)));
 			}

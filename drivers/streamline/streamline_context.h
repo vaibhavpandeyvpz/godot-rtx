@@ -32,6 +32,7 @@
 
 #ifdef STREAMLINE_ENABLED
 #include "drivers/streamline/streamline_data.h"
+#include "drivers/streamline/streamline_frame_token.h"
 #include "drivers/streamline/streamline_headers.h"
 class StreamlineContext {
 public:
@@ -46,6 +47,8 @@ public:
 	PFun_slFreeResources *slFreeResources = nullptr;
 	PFun_slEvaluateFeature *slEvaluateFeature = nullptr;
 	PFun_slSetTag *slSetTag = nullptr;
+	PFun_slSetTagForFrame *slSetTagForFrame = nullptr;
+	bool frame_based_resource_tagging = false;
 	PFun_slSetConstants *slSetConstants = nullptr;
 	PFun_slSetFeatureLoaded *slSetFeatureLoaded = nullptr;
 	PFun_slSetD3DDevice *slSetD3DDevice = nullptr;
@@ -100,6 +103,10 @@ public:
 	void pcl_set_options(const sl::PCLOptions &opts);
 	void pcl_marker(sl::FrameToken *frameToken, sl::PCLMarker marker);
 	sl::FrameToken *get_new_frame_token();
+	sl::FrameToken *get_current_frame_token() const {
+		// Do not read last_token on the render thread: the main thread owns it.
+		return StreamlineRenderFrameScope::is_active() ? static_cast<sl::FrameToken *>(StreamlineRenderFrameScope::get_token()) : last_token;
+	}
 
 	void dlssg_disable();
 

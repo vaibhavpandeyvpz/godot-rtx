@@ -30,9 +30,14 @@
 
 #include "rendering_server_default.h"
 
+#include "core/io/image.h"
 #include "core/object/callable_mp.h"
 #include "core/os/os.h"
 #include "core/profiling/profiling.h"
+#ifdef STREAMLINE_ENABLED
+#include "drivers/streamline/streamline.h"
+#include "drivers/streamline/streamline_frame_token.h"
+#endif
 #include "servers/display/display_server.h"
 #include "servers/rendering/renderer_canvas_cull.h"
 #include "servers/rendering/renderer_scene_cull.h"
@@ -46,6 +51,22 @@
 // careful, these may run in different threads than the rendering server
 
 int RenderingServerDefault::changes = 0;
+
+void RenderingServerDefault::texture_2d_update(RID p_texture, const Ref<Image> &p_image, int p_layer) {
+	redraw_request();
+	if (Thread::get_caller_id() != server_thread) {
+		// The producer may reuse or clear this Image before the queued upload.
+		// Snapshot the object; its pixel array uses copy-on-write storage.
+		Ref<Image> snapshot;
+		if (p_image.is_valid()) {
+			snapshot = p_image->duplicate();
+		}
+		command_queue.push(RSG::texture_storage, &RendererTextureStorage::texture_2d_update, p_texture, snapshot, p_layer);
+	} else {
+		command_queue.flush_if_pending();
+		RSG::texture_storage->texture_2d_update(p_texture, p_image, p_layer);
+	}
+}
 
 /* FREE */
 
@@ -73,7 +94,10 @@ void RenderingServerDefault::request_frame_drawn_callback(const Callable &p_call
 	frame_drawn_callbacks.push_back(p_callable);
 }
 
-void RenderingServerDefault::_draw(bool p_swap_buffers, double frame_step) {
+void RenderingServerDefault::_draw(bool p_swap_buffers, double frame_step, void *p_frame_token) {
+#ifdef STREAMLINE_ENABLED
+	StreamlineRenderFrameScope frame_scope(p_frame_token);
+#endif
 	GodotProfileZoneGroupedFirst(_profile_zone, "rasterizer->begin_frame");
 	RSG::rasterizer->begin_frame(frame_step);
 
@@ -297,6 +321,11 @@ void RenderingServerDefault::finish() {
 			server_task_id = WorkerThreadPool::INVALID_TASK_ID;
 		}
 		server_thread = Thread::MAIN_ID;
+		// The device was handed to the render worker in _assign_mt_ids. Return
+		// ownership after that worker stops, before main-thread device teardown.
+		if (RenderingDevice *rd = RenderingDevice::get_singleton()) {
+			rd->make_current();
+		}
 	} else {
 		_finish();
 	}
@@ -445,10 +474,16 @@ void RenderingServerDefault::draw(bool p_present, double frame_step) {
 	// Needs to be done before changes is reset to 0, to not force the editor to redraw.
 	RS::get_singleton()->emit_signal(SNAME("frame_pre_draw"));
 	changes = 0;
+	void *frame_token = nullptr;
+#ifdef STREAMLINE_ENABLED
+	if (Streamline::get_singleton()) {
+		frame_token = Streamline::get_singleton()->get_frame_token();
+	}
+#endif
 	if (create_thread) {
-		command_queue.push(this, &RenderingServerDefault::_draw, p_present, frame_step);
+		command_queue.push(this, &RenderingServerDefault::_draw, p_present, frame_step, frame_token);
 	} else {
-		_draw(p_present, frame_step);
+		_draw(p_present, frame_step, frame_token);
 	}
 }
 

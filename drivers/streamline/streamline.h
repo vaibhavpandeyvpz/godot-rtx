@@ -49,6 +49,7 @@ public:
 	static void register_singleton();
 
 	void emit_marker(StreamlineMarkerType p_marker);
+	void *get_frame_token();
 	void set_parameter(StreamlineParameterType p_parameter_type, const Variant &p_value);
 	bool get_capability(StreamlineCapabilityType p_capability_type);
 

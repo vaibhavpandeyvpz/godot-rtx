@@ -88,6 +88,7 @@ void StreamlineContext::load_functions(bool d3d12) {
 	this->slFreeResources = SL_GETPROC(PFun_slFreeResources, "slFreeResources");
 	this->slEvaluateFeature = SL_GETPROC(PFun_slEvaluateFeature, "slEvaluateFeature");
 	this->slSetTag = SL_GETPROC(PFun_slSetTag, "slSetTag");
+	this->slSetTagForFrame = SL_GETPROC(PFun_slSetTagForFrame, "slSetTagForFrame");
 	this->slSetConstants = SL_GETPROC(PFun_slSetConstants, "slSetConstants");
 #undef SL_GETPROC
 
@@ -362,6 +363,10 @@ void StreamlineContext::initialize(bool d3d12) {
 	pref.renderAPI = d3d12 ? sl::RenderAPI::eD3D12 : sl::RenderAPI::eVulkan;
 	pref.applicationId = 0x90d07004;
 	pref.flags = sl::PreferenceFlags::eDisableCLStateTracking;
+	StreamlineContext::get().frame_based_resource_tagging = StreamlineContext::get().slSetTagForFrame != nullptr;
+	if (StreamlineContext::get().frame_based_resource_tagging) {
+		pref.flags |= sl::PreferenceFlags::eUseFrameBasedResourceTagging;
+	}
 
 	if (bool(GLOBAL_GET("rendering/streamline/streamline_log"))) {
 		pref.logLevel = sl::LogLevel::eVerbose;

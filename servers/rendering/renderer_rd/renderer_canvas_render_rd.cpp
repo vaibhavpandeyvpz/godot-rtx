@@ -729,7 +729,11 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 
 		state_buffer.flags = use_linear_colors ? CANVAS_FLAGS_CONVERT_ATTRIBUTES_TO_LINEAR : 0;
 
-		RD::get_singleton()->buffer_update(state.canvas_state_buffer, 0, sizeof(State::Buffer), &state_buffer);
+		// Empty canvases never consume this UBO. Avoid transfer-only overwrites
+		// between frames when a 3D viewport has no canvas draw to order them.
+		if (p_item_list != nullptr) {
+			RD::get_singleton()->buffer_update(state.canvas_state_buffer, 0, sizeof(State::Buffer), &state_buffer);
+		}
 	}
 
 	{ //default filter/repeat
@@ -1927,6 +1931,7 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 	{ //bindings
 
 		state.canvas_state_buffer = RD::get_singleton()->uniform_buffer_create(sizeof(State::Buffer));
+		RD::get_singleton()->set_resource_name(state.canvas_state_buffer, "Canvas State UBO");
 		state.lights_storage_buffer = RD::get_singleton()->storage_buffer_create(sizeof(LightUniform) * MAX_LIGHTS_PER_RENDER);
 
 		RD::SamplerState shadow_sampler_state;

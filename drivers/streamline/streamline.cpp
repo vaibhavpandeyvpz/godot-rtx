@@ -72,6 +72,19 @@ Streamline *Streamline::get_singleton() {
 	return singleton;
 }
 
+void *Streamline::get_frame_token() {
+	_THREAD_SAFE_METHOD_
+#ifdef STREAMLINE_ENABLED
+	StreamlineContext &context = StreamlineContext::get();
+	if (context.last_token == nullptr && context.slGetNewFrameToken != nullptr) {
+		context.get_new_frame_token();
+	}
+	return context.last_token;
+#else
+	return nullptr;
+#endif
+}
+
 Streamline::Streamline() {
 	singleton = this;
 }
@@ -185,8 +198,8 @@ void Streamline::emit_marker(StreamlineMarkerType marker) {
 			return;
 	}
 
-	if (sl_context.last_token && sl_marker != sl::PCLMarker::eMaximum) {
-		sl_context.pcl_marker(sl_context.last_token, sl_marker);
+	if (sl_context.get_current_frame_token() && sl_marker != sl::PCLMarker::eMaximum) {
+		sl_context.pcl_marker(sl_context.get_current_frame_token(), sl_marker);
 	}
 #endif
 }

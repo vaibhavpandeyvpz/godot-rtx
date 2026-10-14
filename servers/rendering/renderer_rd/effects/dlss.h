@@ -38,6 +38,7 @@ class DLSSEffect;
 class DLSSContext {
 public:
 	struct Parameters {
+		void *frame_token = nullptr;
 		DLSSContext *context;
 		Size2i internal_size;
 		RID color;
