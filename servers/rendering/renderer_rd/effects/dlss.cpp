@@ -271,7 +271,7 @@ void DLSSEffect::upscale(const DLSSContext::Parameters &p_params) {
 	}
 
 	// Inject DLSS into the render graph
-	RD::CallbackResource res[8]; // Increased for DLSS-RR buffers
+	RD::CallbackResource res[9]; // Includes DLSS-RR transparency guide.
 	int num_resources = 0;
 	res[num_resources++].rid = p_params.color;
 	res[num_resources++].rid = p_params.output;
@@ -291,6 +291,9 @@ void DLSSEffect::upscale(const DLSSContext::Parameters &p_params) {
 		}
 		if (p_params.dlss_rr_specular_hit_dist.is_valid()) {
 			res[num_resources++].rid = p_params.dlss_rr_specular_hit_dist;
+		}
+		if (p_params.dlss_rr_color_before_transparency.is_valid()) {
+			res[num_resources++].rid = p_params.dlss_rr_color_before_transparency;
 		}
 	}
 
@@ -454,16 +457,27 @@ void DLSSEffect::_upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext
 		// Set SL Options
 		if (StreamlineContext::get().slSetConstants != nullptr) {
 			sl::float4x4 mtxIdentity = sl_make_identity_matrix();
-			context->constants.cameraViewToClip = sl_convert_matrix(p_params.cam_projection); // projection mtx (unjittered)
-			context->constants.clipToCameraView = sl_convert_matrix(p_params.cam_projection.inverse()); // projection mtx (unjittered, inverted)
+			// Guide projection must match the tagged hardware depth: flipped Y,
+			// reversed Z in [0, 1], with no jitter. Godot's camera projection is
+			// still in OpenGL [-1, 1] depth space at this point.
+			Projection guide_correction;
+			guide_correction.set_depth_correction(true, p_params.reverse_depth, true);
+			const Projection guide_projection = guide_correction * p_params.cam_projection;
+			// The motion decoder consumes depth * 2 - 1, so its reprojection uses
+			// [-1, 1]. Streamline consumes hardware [0, 1] depth instead.
+			Projection clip_depth_remap;
+			clip_depth_remap.set_depth_correction(false, false, true);
+			const Projection guide_reprojection = clip_depth_remap * p_params.reprojection * clip_depth_remap.inverse();
+			context->constants.cameraViewToClip = sl_convert_matrix(guide_projection);
+			context->constants.clipToCameraView = sl_convert_matrix(guide_projection.inverse());
 			context->constants.clipToLensClip = mtxIdentity; // keep identity unless some lens distortion is applied
-			context->constants.clipToPrevClip = sl_convert_matrix(p_params.reprojection); // reprojection matrix
-			context->constants.prevClipToClip = sl_convert_matrix(p_params.reprojection.inverse()); // inverted reprojection matrix
+			context->constants.clipToPrevClip = sl_convert_matrix(guide_reprojection);
+			context->constants.prevClipToClip = sl_convert_matrix(guide_reprojection.inverse());
 
 			context->constants.cameraPos = sl_convert_vector(p_params.cam_transform.get_origin());
-			context->constants.cameraFwd = sl_convert_vector(-p_params.cam_transform.get_basis().rows[2]);
-			context->constants.cameraUp = sl_convert_vector(p_params.cam_transform.get_basis().rows[1]);
-			context->constants.cameraRight = sl_convert_vector(p_params.cam_transform.get_basis().rows[0]);
+			context->constants.cameraFwd = sl_convert_vector(-p_params.cam_transform.get_basis().get_column(2));
+			context->constants.cameraUp = sl_convert_vector(p_params.cam_transform.get_basis().get_column(1));
+			context->constants.cameraRight = sl_convert_vector(p_params.cam_transform.get_basis().get_column(0));
 
 			context->constants.cameraNear = p_params.z_near;
 			context->constants.cameraFar = p_params.z_far;
@@ -504,6 +518,7 @@ void DLSSEffect::_upscale_internal(RDD::CommandBufferID cmdid, const DLSSContext
 				// kBufferTypeNormalRoughness for packed normal+roughness (XYZ=normal, W=roughness)
 				assignResource(resources, resourceTags, numResources, p_params.dlss_rr_normal_roughness, sl::kBufferTypeNormalRoughness, sl::ResourceLifecycle::eValidUntilPresent);
 				assignResource(resources, resourceTags, numResources, p_params.dlss_rr_specular_hit_dist, sl::kBufferTypeSpecularHitDistance, sl::ResourceLifecycle::eValidUntilPresent);
+				assignResource(resources, resourceTags, numResources, p_params.dlss_rr_color_before_transparency, sl::kBufferTypeColorBeforeTransparency, sl::ResourceLifecycle::eValidUntilPresent);
 			}
 
 			sl::Result result = StreamlineContext::get().slSetTag(context->viewport, resourceTags, numResources, nativeCmdlist);

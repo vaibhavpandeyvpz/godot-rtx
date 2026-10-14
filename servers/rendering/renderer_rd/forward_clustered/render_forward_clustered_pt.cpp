@@ -444,6 +444,22 @@ void RenderForwardClusteredPT::_render_scene(RenderDataRD *p_render_data, const 
 		_process_compositor_effects(RSE::COMPOSITOR_EFFECT_CALLBACK_TYPE_PRE_TRANSPARENT, p_render_data);
 	}
 
+	RID color_before_transparency;
+	if (scale_type == SCALE_3D_DLSS && raytracing && raytracing->dlss_rr_has_buffers(rb.ptr())) {
+		// Raster particles and transparent effects do not have the opaque RT
+		// motion/depth guides. Give RR the exact noisy color before the overlay
+		// so it can distinguish these pixels instead of retaining opaque history.
+		const StringName guide_name = SNAME("pt_color_before_transparency");
+		if (!rb->has_texture(RB_SCOPE_FORWARD_CLUSTERED, guide_name)) {
+			const RD::DataFormat format = RD::get_singleton()->texture_get_format(rb->get_internal_texture()).format;
+			rb->create_texture(RB_SCOPE_FORWARD_CLUSTERED, guide_name, format, RD::TEXTURE_USAGE_SAMPLING_BIT | RD::TEXTURE_USAGE_STORAGE_BIT);
+		}
+		color_before_transparency = rb->get_texture(RB_SCOPE_FORWARD_CLUSTERED, guide_name);
+		for (uint32_t v = 0; v < rb->get_view_count(); v++) {
+			copy_effects->copy_to_rect(rb->get_internal_texture(v), rb->get_texture_slice(RB_SCOPE_FORWARD_CLUSTERED, guide_name, v, 0), Rect2i(Point2i(), rb->get_internal_size()));
+		}
+	}
+
 	{
 		RENDER_TIMESTAMP("Render 3D Transparent Pass");
 
@@ -495,6 +511,7 @@ void RenderForwardClusteredPT::_render_scene(RenderDataRD *p_render_data, const 
 			dlss_rr_guides.specular_albedo = raytracing->dlss_rr_get_specular_albedo(rb.ptr());
 			dlss_rr_guides.normal_roughness = raytracing->dlss_rr_get_normal_roughness(rb.ptr());
 			dlss_rr_guides.specular_hit_dist = raytracing->dlss_rr_get_specular_hit_dist(rb.ptr());
+			dlss_rr_guides.color_before_transparency = color_before_transparency;
 		}
 		_render_3d_upscaling(p_render_data, scale_type, using_taa, time_step, dlss_rr_guides);
 	}

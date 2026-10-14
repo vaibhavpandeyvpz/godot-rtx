@@ -2232,6 +2232,10 @@ void MaterialStorage::shader_set_code(RID p_shader, const String &p_code) {
 	MutexLock lock(*shader->mutex);
 
 	shader->code = p_code;
+	// Raster-source fallback shaders also participate in the RT slot table.
+	// Hash on source changes instead of allocating and hashing per RT surface.
+	shader->code_hash = p_code.hash64();
+	shader->code_hash_b = (String("RT_HG_B|") + p_code + "|B_END").hash64();
 	String mode_string = ShaderLanguage::get_shader_type(p_code);
 
 	ShaderType new_type;
@@ -2623,7 +2627,7 @@ uint64_t MaterialStorage::material_get_shader_code_rt_hash(RID p_material) const
 		if (material->shader->code_rt_hash != 0) {
 			return material->shader->code_rt_hash;
 		}
-		return material->shader->code.hash64();
+		return material->shader->code_hash;
 	}
 	return 0;
 }
@@ -2634,8 +2638,7 @@ uint64_t MaterialStorage::material_get_shader_code_rt_hash_b(RID p_material) con
 		if (material->shader->code_rt_hash_b != 0) {
 			return material->shader->code_rt_hash_b;
 		}
-		const String wrapped_b = String("RT_HG_B|") + material->shader->code + "|B_END";
-		return wrapped_b.hash64();
+		return material->shader->code_hash_b;
 	}
 	return 0;
 }

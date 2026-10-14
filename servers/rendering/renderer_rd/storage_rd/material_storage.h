@@ -272,6 +272,8 @@ private:
 		Mutex *mutex = nullptr;
 		ShaderData *data = nullptr;
 		String code;
+		uint64_t code_hash = 0;
+		uint64_t code_hash_b = 0;
 		// Same source preprocessed with `RT=1`. Set by `shader_set_code_rt`.
 		String code_rt;
 		uint64_t code_rt_hash = 0;
