@@ -506,9 +506,16 @@ void SkyRD::ReflectionData::update_reflection_mipmaps(int p_start, int p_end) {
 // SkyRD::Sky
 
 void SkyRD::Sky::free() {
+	if (radiance_first_layer_slice.is_valid()) {
+		if (RD::get_singleton()->texture_is_valid(radiance_first_layer_slice)) {
+			RD::get_singleton()->free_rid(radiance_first_layer_slice);
+		}
+		radiance_first_layer_slice = RID();
+	}
 	if (radiance.is_valid()) {
 		RD::get_singleton()->free_rid(radiance);
 		radiance = RID();
+		radiance_first_layer_slice = RID();
 	}
 	reflection.clear_reflection_data();
 
@@ -533,7 +540,7 @@ RID SkyRD::Sky::get_textures(SkyTextureSetVersion p_version, RID p_default_shade
 		u.uniform_type = RD::UNIFORM_TYPE_TEXTURE;
 		u.binding = 0;
 		if (radiance.is_valid() && p_version <= SKY_TEXTURE_SET_QUARTER_RES) {
-			u.append_id(radiance);
+			u.append_id(radiance_first_layer_slice.is_valid() ? radiance_first_layer_slice : radiance);
 		} else {
 			u.append_id(texture_storage->texture_rd_get_default(RendererRD::TextureStorage::DEFAULT_RD_TEXTURE_BLACK));
 		}
@@ -598,6 +605,7 @@ bool SkyRD::Sky::set_radiance_size(int p_radiance_size) {
 	if (radiance.is_valid()) {
 		RD::get_singleton()->free_rid(radiance);
 		radiance = RID();
+		radiance_first_layer_slice = RID();
 	}
 	reflection.clear_reflection_data();
 
@@ -623,6 +631,7 @@ bool SkyRD::Sky::set_mode(RSE::SkyMode p_mode) {
 	if (radiance.is_valid()) {
 		RD::get_singleton()->free_rid(radiance);
 		radiance = RID();
+		radiance_first_layer_slice = RID();
 	}
 	reflection.clear_reflection_data();
 
@@ -1017,6 +1026,7 @@ void SkyRD::setup_sky(const RenderDataRD *p_render_data, const Size2i p_screen_s
 				if (sky->radiance.is_valid()) {
 					RD::get_singleton()->free_rid(sky->radiance);
 					sky->radiance = RID();
+					sky->radiance_first_layer_slice = RID();
 				}
 				sky->reflection.clear_reflection_data();
 			}
@@ -1572,6 +1582,8 @@ void SkyRD::update_dirty_skys() {
 				}
 
 				sky->radiance = RD::get_singleton()->texture_create(tf, RD::TextureView());
+
+				sky->radiance_first_layer_slice = RD::get_singleton()->texture_create_shared_from_slice(RD::TextureView(), sky->radiance, 0, 0, mipmaps, RD::TEXTURE_SLICE_2D, 1);
 
 				sky->reflection.update_reflection_data(w, mipmaps, true, sky->radiance, 0, use_realtime, roughness_layers, texture_format, sky->uv_border_size);
 			} else {

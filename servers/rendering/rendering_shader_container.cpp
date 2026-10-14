@@ -139,6 +139,21 @@ void RenderingShaderContainer::_set_from_shader_reflection_post(const ReflectSha
 	// Do nothing.
 }
 
+static RenderingDeviceCommons::TextureType _spv_image_dim_to_texture_type(SpvDim p_dim, bool p_arrayed) {
+	switch (p_dim) {
+		case SpvDim1D:
+			return p_arrayed ? RenderingDeviceCommons::TEXTURE_TYPE_1D_ARRAY : RenderingDeviceCommons::TEXTURE_TYPE_1D;
+		case SpvDim2D:
+			return p_arrayed ? RenderingDeviceCommons::TEXTURE_TYPE_2D_ARRAY : RenderingDeviceCommons::TEXTURE_TYPE_2D;
+		case SpvDim3D:
+			return RenderingDeviceCommons::TEXTURE_TYPE_3D;
+		case SpvDimCube:
+			return p_arrayed ? RenderingDeviceCommons::TEXTURE_TYPE_CUBE_ARRAY : RenderingDeviceCommons::TEXTURE_TYPE_CUBE;
+		default:
+			return RenderingDeviceCommons::TEXTURE_TYPE_MAX;
+	}
+}
+
 static RenderingDeviceCommons::DataFormat spv_image_format_to_data_format(const SpvImageFormat p_format) {
 	using RDC = RenderingDeviceCommons;
 	switch (p_format) {
@@ -458,6 +473,8 @@ Error RenderingShaderContainer::reflect_spirv(const String &p_shader_name, Span<
 
 					if (is_image) {
 						uniform.image.format = spv_image_format_to_data_format(binding.image.image_format);
+						uniform.texture_format = uniform.image.format;
+						uniform.texture_type = _spv_image_dim_to_texture_type(binding.image.dim, binding.image.arrayed);
 					}
 
 					uniform.binding = binding.binding;
@@ -778,6 +795,8 @@ RenderingDeviceCommons::ShaderReflection RenderingShaderContainer::get_shader_re
 			uniform.length = binding.length;
 			uniform.binding = binding.binding;
 			uniform.stages = binding.stages;
+			uniform.texture_type = binding.texture_type;
+			uniform.texture_format = binding.texture_format;
 		}
 	}
 
