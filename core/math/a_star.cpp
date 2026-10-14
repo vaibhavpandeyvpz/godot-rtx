@@ -67,6 +67,7 @@ void AStar3D::add_point(int64_t p_id, const Vector3 &p_pos, real_t p_weight_scal
 		found_pt->pos = p_pos;
 		found_pt->weight_scale = p_weight_scale;
 	}
+	_point_data_changed(false);
 }
 
 Vector3 AStar3D::get_point_position(int64_t p_id) const {
@@ -81,6 +82,7 @@ void AStar3D::set_point_position(int64_t p_id, const Vector3 &p_pos) {
 	ERR_FAIL_COND_MSG(!point_entry, vformat("Can't set point's position. Point with id: %d doesn't exist.", p_id));
 
 	(*point_entry)->pos = p_pos;
+	_point_data_changed(false);
 }
 
 real_t AStar3D::get_point_weight_scale(int64_t p_id) const {
@@ -122,6 +124,7 @@ void AStar3D::remove_point(int64_t p_id) {
 	memdelete(p);
 	points.erase(p_id);
 	last_free_id = p_id;
+	_point_data_changed(false);
 }
 
 void AStar3D::connect_points(int64_t p_id, int64_t p_with_id, bool bidirectional) {
@@ -238,6 +241,7 @@ bool AStar3D::are_points_connected(int64_t p_id, int64_t p_with_id, bool bidirec
 }
 
 void AStar3D::clear() {
+	_point_data_changed(true);
 	last_free_id = 0;
 	for (KeyValue<int64_t, Point *> &kv : points) {
 		memdelete(kv.value);
