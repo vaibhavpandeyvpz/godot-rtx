@@ -361,6 +361,17 @@ void PhysicsShapeQueryParameters3D::_bind_methods() {
 
 /////////////////////////////////////
 
+bool PhysicsDirectSpaceState3D::_ray_intersects(const Vector3 &p_from, const Vector3 &p_to, uint32_t p_collision_mask, bool p_hit_from_inside, bool p_hit_back_faces) {
+	RayParameters parameters;
+	parameters.from = p_from;
+	parameters.to = p_to;
+	parameters.collision_mask = p_collision_mask;
+	parameters.hit_from_inside = p_hit_from_inside;
+	parameters.hit_back_faces = p_hit_back_faces;
+	RayResult result;
+	return intersect_ray(parameters, result);
+}
+
 Dictionary PhysicsDirectSpaceState3D::_intersect_ray(RequiredParam<PhysicsRayQueryParameters3D> rp_ray_query) {
 	EXTRACT_PARAM_OR_FAIL_V(p_ray_query, rp_ray_query, Dictionary());
 
@@ -488,6 +499,7 @@ PhysicsDirectSpaceState3D::PhysicsDirectSpaceState3D() {
 void PhysicsDirectSpaceState3D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("intersect_point", "parameters", "max_results"), &PhysicsDirectSpaceState3D::_intersect_point, DEFVAL(32));
 	ClassDB::bind_method(D_METHOD("intersect_ray", "parameters"), &PhysicsDirectSpaceState3D::_intersect_ray);
+	ClassDB::bind_method(D_METHOD("ray_intersects", "from", "to", "collision_mask", "hit_from_inside", "hit_back_faces"), &PhysicsDirectSpaceState3D::_ray_intersects, DEFVAL(UINT32_MAX), DEFVAL(false), DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("intersect_shape", "parameters", "max_results"), &PhysicsDirectSpaceState3D::_intersect_shape, DEFVAL(32));
 	ClassDB::bind_method(D_METHOD("cast_motion", "parameters"), &PhysicsDirectSpaceState3D::_cast_motion);
 	ClassDB::bind_method(D_METHOD("collide_shape", "parameters", "max_results"), &PhysicsDirectSpaceState3D::_collide_shape, DEFVAL(32));

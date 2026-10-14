@@ -127,6 +127,7 @@ class PhysicsDirectSpaceState3D : public Object {
 
 private:
 	Dictionary _intersect_ray(RequiredParam<PhysicsRayQueryParameters3D> rp_ray_query);
+	bool _ray_intersects(const Vector3 &p_from, const Vector3 &p_to, uint32_t p_collision_mask, bool p_hit_from_inside, bool p_hit_back_faces);
 	TypedArray<Dictionary> _intersect_point(RequiredParam<PhysicsPointQueryParameters3D> rp_point_query, int p_max_results = 32);
 	TypedArray<Dictionary> _intersect_shape(RequiredParam<PhysicsShapeQueryParameters3D> rp_shape_query, int p_max_results = 32);
 	Vector<real_t> _cast_motion(RequiredParam<PhysicsShapeQueryParameters3D> rp_shape_query);

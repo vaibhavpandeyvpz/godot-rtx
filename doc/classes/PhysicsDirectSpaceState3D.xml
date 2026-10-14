@@ -12,6 +12,17 @@
 		<link title="Ray-casting">$DOCS_URL/tutorials/physics/ray-casting.html</link>
 	</tutorials>
 	<methods>
+		<method name="ray_intersects">
+			<return type="bool" />
+			<param index="0" name="from" type="Vector3" />
+			<param index="1" name="to" type="Vector3" />
+			<param index="2" name="collision_mask" type="int" default="4294967295" />
+			<param index="3" name="hit_from_inside" type="bool" default="false" />
+			<param index="4" name="hit_back_faces" type="bool" default="true" />
+			<description>
+				Returns whether a ray segment intersects a physics body matching [param collision_mask]. Areas are ignored and no bodies are excluded. Uses the same backend ray query as [method intersect_ray], without allocating a query parameter resource or returning a hit dictionary. This does not change the backend's traversal or collision semantics. Use [method intersect_ray] when hit details, exclusions or area queries are needed.
+			</description>
+		</method>
 		<method name="cast_motion">
 			<return type="PackedFloat32Array" />
 			<param index="0" name="parameters" type="PhysicsShapeQueryParameters3D" />
