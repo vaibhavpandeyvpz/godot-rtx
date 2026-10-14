@@ -188,29 +188,8 @@ bool ray_query_alpha_test(uint geometry_idx, uint primitive_id, vec2 candidate_b
 /// Returns true if light is visible.
 /// Uses SkipClosestHitShader so only any_hit (alpha test) and miss are invoked.
 /// TerminateOnFirstHit causes early exit on first confirmed opaque hit.
-bool lights_trace_shadow_ray(vec3 origin, vec3 direction, float max_dist, inout uint rng_state) {
-#ifdef USE_RAY_QUERY_SHADOWS
-	// Ray queries are significantly faster, but can not handle complex alpha materials
-	rayQueryEXT shadow_rq;
-	rayQueryInitializeEXT(shadow_rq, tlas,
-			gl_RayFlagsTerminateOnFirstHitEXT,
-			0xFF, origin, 0.001, direction, max_dist - 0.001);
-
-	while (rayQueryProceedEXT(shadow_rq)) {
-		if (rayQueryGetIntersectionTypeEXT(shadow_rq, false) == gl_RayQueryCandidateIntersectionTriangleEXT) {
-			// quick and dirty way to check transparency by sampling the alpha texture
-			// this completely ignores the actual material, so might not be accurate
-			if (ray_query_alpha_test(
-						rayQueryGetIntersectionInstanceCustomIndexEXT(shadow_rq, false),
-						rayQueryGetIntersectionPrimitiveIndexEXT(shadow_rq, false),
-						rayQueryGetIntersectionBarycentricsEXT(shadow_rq, false))) {
-				rayQueryConfirmIntersectionEXT(shadow_rq);
-			}
-		}
-	}
-
-	return rayQueryGetIntersectionTypeEXT(shadow_rq, true) == gl_RayQueryCommittedIntersectionNoneEXT;
-#elif defined(USE_SER)
+bool lights_trace_shadow_ray_pipeline(vec3 origin, vec3 direction, float max_dist, inout uint rng_state) {
+#if defined(USE_SER)
 	hitObjectEXT hitObject;
 	hitObjectTraceRayEXT(hitObject, tlas,
 			gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT,
@@ -246,6 +225,25 @@ bool lights_trace_shadow_ray(vec3 origin, vec3 direction, float max_dist, inout 
 	payload = saved_payload;
 
 	return visible;
+#endif
+}
+
+bool lights_trace_shadow_ray(vec3 origin, vec3 direction, float max_dist, inout uint rng_state) {
+#ifdef USE_RAY_QUERY_SHADOWS
+	rayQueryEXT shadow_rq;
+	rayQueryInitializeEXT(shadow_rq, tlas,
+			gl_RayFlagsTerminateOnFirstHitEXT,
+			0xFF, origin, 0.001, direction, max_dist - 0.001);
+	while (rayQueryProceedEXT(shadow_rq)) {
+		// Opaque geometry is committed by traversal. Any reported candidate
+		// needs the actual material shader (or procedural intersection shader).
+		// Restart through the full pipeline instead of approximating its alpha.
+		rayQueryTerminateEXT(shadow_rq);
+		return lights_trace_shadow_ray_pipeline(origin, direction, max_dist, rng_state);
+	}
+	return rayQueryGetIntersectionTypeEXT(shadow_rq, true) == gl_RayQueryCommittedIntersectionNoneEXT;
+#else
+	return lights_trace_shadow_ray_pipeline(origin, direction, max_dist, rng_state);
 #endif
 }
 

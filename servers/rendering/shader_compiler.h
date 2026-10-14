@@ -49,6 +49,7 @@ public:
 	};
 
 	struct IdentifierActions {
+		String discard_statement = "discard;";
 		HashMap<StringName, Stage> entry_point_stages;
 
 		HashMap<StringName, Pair<int *, int>> render_mode_values;

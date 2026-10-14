@@ -577,6 +577,8 @@ bool SceneShaderRaytracing::_preprocess_shader(RID p_material, bool p_is_procedu
 
 	actions.render_mode_flags["unshaded"] = &r_entry.unshaded;
 	bool detected_alpha_clip = false;
+	actions.discard_statement = "RT_DISCARD;";
+	actions.usage_flag_pointers["DISCARD"] = &detected_alpha_clip;
 	actions.usage_flag_pointers["ALPHA_SCISSOR_THRESHOLD"] = &detected_alpha_clip;
 	actions.usage_flag_pointers["ALPHA_HASH_SCALE"] = &detected_alpha_clip;
 
@@ -662,7 +664,7 @@ uint32_t SceneShaderRaytracing::compute_rt_flags(RID p_environment, bool p_fog_e
 			flags |= RT_FLAG_DEBUG_VIS_ENABLED;
 		}
 
-		if (GLOBAL_GET("rendering/pathtracing/use_simple_shadows")) {
+		if (GLOBAL_GET("rendering/pathtracing/use_simple_shadows") && RD::get_singleton()->has_feature(RD::SUPPORTS_RAY_QUERY)) {
 			flags |= RT_FLAG_RAY_QUERY_SHADOWS_ENABLED;
 		}
 
@@ -1017,7 +1019,9 @@ SceneShaderRaytracing::PipelineBuildTask *SceneShaderRaytracing::_make_pipeline_
 			s = s.replace("/* RT_CUSTOM_FRAGMENT_GLOBALS */", entry.fragment_globals);
 			s = s.replace("/* RT_CUSTOM_FRAGMENT_CODE */", fragment_code);
 			s = s.replace("/* RT_CUSTOM_UNIFORM_MEMBERS */", uniform_members);
-			s = s.replace("/* RT_CUSTOM_TEXTURE_DEFINES */", tex_defines);
+			// Any-hit already rejected discarded intersections. Closest-hit cannot
+			// use a fragment discard opcode, including inside helper functions.
+			s = s.replace("/* RT_CUSTOM_TEXTURE_DEFINES */", tex_defines + "\n#define RT_DISCARD\n");
 			s = s.replace("/* RT_CUSTOM_VERTEX_FUNCTION */", vertex_function);
 			s = s.replace("/* RT_CUSTOM_VERTEX_CALL */", vertex_call);
 			si.ch_src = s;
@@ -1027,7 +1031,7 @@ SceneShaderRaytracing::PipelineBuildTask *SceneShaderRaytracing::_make_pipeline_
 			s = s.replace("/* RT_CUSTOM_FRAGMENT_GLOBALS */", entry.fragment_globals);
 			s = s.replace("/* RT_CUSTOM_FRAGMENT_CODE */", fragment_code);
 			s = s.replace("/* RT_CUSTOM_UNIFORM_MEMBERS */", uniform_members);
-			s = s.replace("/* RT_CUSTOM_TEXTURE_DEFINES */", tex_defines);
+			s = s.replace("/* RT_CUSTOM_TEXTURE_DEFINES */", tex_defines + "\n#define RT_DISCARD ignoreIntersectionEXT\n");
 			s = s.replace("/* RT_CUSTOM_VERTEX_FUNCTION */", vertex_function);
 			s = s.replace("/* RT_CUSTOM_VERTEX_CALL */", vertex_call);
 			si.ah_src = s;
